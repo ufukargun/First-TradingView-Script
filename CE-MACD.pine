@@ -25,7 +25,8 @@ dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
 var color longColor = color.green
 var color shortColor = color.red
 
-//MACD
+//MACD1
+
 
 sma = input.int(12, title='Fast MA')
 lma = input.int(21, title='Slow MA')
