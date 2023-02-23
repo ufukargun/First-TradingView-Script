@@ -1,0 +1,100 @@
+//@version=5
+// Copyright (c) 2019-present, Alex Orekhov (everget)
+// Chandelier Exit script may be freely distributed under the terms of the GPL-3.0 license.
+indicator('Chandelier Exit / N MACD', shorttitle='CE / NMACD', overlay=true)
+
+length = input(title='ATR Period', defval=1)
+mult = input.float(title='ATR Multiplier', step=0.1, defval=1.85)
+showLabels = input(title='Show Buy/Sell Labels ?', defval=true)
+useClose = input(title='Use Close Price for Extremums ?', defval=true)
+highlightState = input(title='Highlight State ?', defval=true)
+
+atr = mult * ta.atr(length)
+
+longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, length) : ta.lowest(length)) + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+var color longColor = color.green
+var color shortColor = color.red
+
+//MACD
+
+sma = input.int(12, title='Fast MA')
+lma = input.int(21, title='Slow MA')
+tsp = input.int(9, title='Trigger')
+np = input.int(50, title='Normalize')
+h=input.bool(true,title='Histogram')
+docol = input.bool(false,title="Color Change")
+dofill=input.bool(false,title="Fill")
+type = input.int(1,minval=1,maxval=3,title="1=Ema, 2=Wma, 3=Sma")
+
+sh = type == 1 ? ta.ema(close,sma)  
+ : type == 2 ? ta.wma(close, sma)
+ : ta.sma(close, sma)
+
+lon=type == 1 ? ta.ema(close,lma) 
+ : type == 2 ? ta.wma(close, lma)
+ : ta.sma(close, lma)
+
+ratio = math.min(sh,lon)/math.max(sh,lon)
+Mac = sh > lon ? 2 - ratio - 1 : ratio - 1
+MacNorm = ((Mac-ta.lowest(Mac, np)) /(ta.highest(Mac, np)-ta.lowest(Mac, np)+.000001)*2)- 1
+MacNorm2 = np<2?Mac:MacNorm
+Trigger = ta.wma(MacNorm2, tsp)
+Hist = (MacNorm2-Trigger)
+Hist2 = Hist>1?1:Hist<-1?-1:Hist
+swap=Hist2>Hist2[1]?color.green:color.red
+swap2 = docol ? MacNorm2 > MacNorm2[1] ? color.rgb(0, 148, 255) : color.rgb(255, 0, 110) : color.red
+
+
+buysignal1 = ta.crossover(MacNorm, Trigger) and MacNorm2 and Trigger < 0
+buysignal2 = dir == 1 and dir[1] == -1
+buysignal3 = ta.crossover(MacNorm, Trigger) and MacNorm2 and Trigger > 0
+
+buyConfirmed = false
+
+if buysignal2 and ta.barssince(buysignal1) <= 4 or buysignal1 and ta.barssince(buysignal2) <= 4 
+    buyConfirmed := true
+plotshape(buyConfirmed, title="Buy Label", style=shape.labelup, location=location.belowbar,color=color.green, size=size.tiny, textcolor=color.white, text="Buy")
+
+buyConfirmed2 = false
+if buysignal2 and ta.barssince(buysignal3) <= 4 or buysignal3 and ta.barssince(buysignal2) <= 4 
+    buyConfirmed2 := true
+plotshape(buyConfirmed2, title="Weak Buy Label", style=shape.triangleup, location=location.belowbar,color=color.blue, size=size.tiny, textcolor=color.white, text="Weak Buy")
+
+
+sellsignal1 = ta.crossunder(MacNorm2, Trigger) and MacNorm2 and Trigger > 0
+sellsignal2 = dir == -1 and dir[1] == 1
+sellsignal3 = ta.crossover(MacNorm, Trigger) and MacNorm2 and Trigger < 0
+
+sellConfirmed = false
+
+if sellsignal2 and ta.barssince(sellsignal1) <= 4 or sellsignal1 and ta.barssince(sellsignal2) <= 4
+    sellConfirmed := true
+plotshape(sellConfirmed, title="Sell Label", style=shape.labeldown, location=location.abovebar,color=color.red, size=size.tiny, textcolor=color.white, text="Sell")
+
+sellConfirmed2 = false
+if sellsignal2 and ta.barssince(sellsignal3) <= 4 or sellsignal3 and ta.barssince(sellsignal2) <= 4 
+    sellConfirmed2 := true
+plotshape(sellConfirmed2, title="Weak sell Label", style=shape.triangledown, location=location.abovebar,color=color.yellow, size=size.tiny, textcolor=color.white, text="Weak sell")
+
+
+midPricePlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0, display=display.none, editable=false)
+
+
+changeCond = dir != dir[1]
+alertcondition(changeCond, title='Alert: CE Direction Change', message='Chandelier Exit has changed direction!')
+alertcondition(buyConfirmed, title='Alert: CE Buy', message='Chandelier Exit Buy!')
+alertcondition(sellConfirmed, title='Alert: CE Sell', message='Chandelier Exit Sell!')
+alertcondition(buyConfirmed2, title='Alert: CE Weak Buy', message='Chandelier Exit Weak Buy!')
+alertcondition(sellConfirmed2, title='Alert: CE Weak Sell', message='Chandelier Exit Weak Sell!')
+
+//plotshape(changeCond, title="Change Cond Label", style=shape.flag, location=location.bottom,color=color.rgb(255, 59, 190), size=size.tiny, textcolor=color.white, text="Change")
